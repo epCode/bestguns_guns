@@ -741,7 +741,7 @@ bestguns.register_bullet("bestguns:bullet_carbine", {
     size = 0.5,
     texturesize = 20,
     texture = "bestguns_bullet_light.png",
-    inventory_image = "bestguns_39mm.png",   -- TODO: dedicated art
+    inventory_image = "bestguns_30mm.png",   -- TODO: dedicated art
     damage = 39,                             -- carbine's damage_mult of 2 -> 78 damage
     recoil = 1.4,
     fire_sound = "bestguns_carbine_fire"
