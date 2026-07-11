@@ -40,6 +40,19 @@ bestguns.register_bullet("bestguns:bullet_39mm", {
     inventory_image = "bestguns_39mm.png",
     damage = 39,
     recoil = 1.4,
+    fire_sound = "bestguns_ar_fire"
+})
+
+bestguns.register_bullet("bestguns:bullet_39_ak", {
+    description = "7.62x39mm Round for AK-47",
+    caliber = "7.62x39mm",
+    speed = 715,       -- rifle muzzle velocity (~715 m/s), well above pistol rounds
+    size = 0.5,
+    texturesize = 20,
+    texture = "bestguns_bullet_light.png",
+    inventory_image = "bestguns_39mm.png",
+    damage = 39,
+    recoil = 1.4,
     fire_sound = "bestguns_ak_fire"
 })
 
@@ -94,7 +107,7 @@ bestguns.register_bullet("bestguns:12_gauge", {
 })
 
 
-
+--[[
 bestguns.register_gun("bestguns:pistol", {
     description = "9mm Pistol",
     default_bullet = "bestguns:bullet_9mm",
@@ -144,7 +157,7 @@ bestguns.register_gun("bestguns:pistol", {
     on_reload = function(itemstack, user)
       return
     end
-})
+})]]
 
 
 
@@ -281,13 +294,13 @@ bestguns.register_gun("bestguns:semi_auto_rifle", {
     mag_insert = "bestguns_mag_insert",
     mag_remove = "bestguns_mag_remove",
     default_bullet = "bestguns:bullet_39mm",
-    inaccuracy = 0.15,  -- almost sniper-perfect (bolt sniper = 0), but not quite
+    inaccuracy = 0.12,  -- almost sniper-perfect (bolt sniper = 0), but not quite
     damage_mult = 1.3,  -- 1.3x the bullet's base 39 damage (~51)
     kick = 2.1,
 
     fire_delay = 0.14,  -- marksman cadence: slower than the assault rifle, but pinpoint + scoped
-    zoom = 0.233,       -- 3x more magnified than the assault rifle's 0.7 FOV
-    scope_size = 2,
+    zoom = 0.16,
+    scope_size = 1.3,
     zoomhud = true,
     wield_scale = vector.new(2.6,2.6,1.6),
     action = "semi",
@@ -506,7 +519,7 @@ bestguns.register_bullet("bestguns:bullet_44", {
 bestguns.register_bullet("bestguns:bullet_50", {
     description = ".50 Action Express Bullet",
     caliber = ".50",
-    speed = 450,
+    speed = 750,
     size = 0.35,
     texture = "bestguns_bullet_light.png",
     inventory_image = "bestguns_50.png",
@@ -680,7 +693,7 @@ bestguns.register_gun("bestguns:ak47", {
     sound_load_mag = "bestguns_load_bullet",
     mag_insert = "bestguns_mag_insert",
     mag_remove = "bestguns_mag_remove",
-    default_bullet = "bestguns:bullet_39mm",
+    default_bullet = "bestguns:bullet_39_ak",
     inaccuracy = 2,     -- looser than the Assault Rifle's 1.2: iconic spray-and-pray
     damage_mult = 1.15,
     kick = 2.6,
@@ -762,6 +775,9 @@ bestguns.register_gun("bestguns:carbine", {
     inaccuracy = 0.5,   -- tighter than the AK's 2, looser than the Semi-Auto Rifle's 0.15
     damage_mult = 2,    -- .30 Carbine bullet (39) * 2 = 78 damage
     kick = 1.8,
+    zoom = 0.2,
+    scope_size = 1.4,
+    zoomhud = true,
 
     fire_delay = 0.09,  -- quicker handling than the Semi-Auto Rifle's 0.14 marksman cadence
     action = "full",
