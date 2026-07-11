@@ -3,8 +3,8 @@
 -- =============================================================================
 --
 -- The stock set of realistic firearms built on the bestguns API: pistol, uzi,
--- assault rifle, semi-auto rifle, burst rifle, shotgun, bolt-action sniper and
--- revolver, plus the bullets they fire.
+-- assault rifle, semi-auto rifle, shotgun, bolt-action sniper and revolver,
+-- plus the bullets they fire.
 --
 -- This file only uses the public bestguns.* API (register_bullet, register_gun,
 -- a_smoke, r, damage_scale, registered_bullets), so it can live here or be split
@@ -26,31 +26,21 @@ bestguns.register_bullet("bestguns:bullet_9mm", {
 })
 
 
+-- The AK-47 / assault-rifle round. Item id stays "bullet_39mm" for save/recipe
+-- compatibility, but it is really 7.62x39mm ("39mm" was a mislabel: that number
+-- is the case length, not a 39-millimetre-wide bullet). Rifle round, so it flies
+-- much faster than the pistol calibers.
 bestguns.register_bullet("bestguns:bullet_39mm", {
-    description = "39mm Bullet",
-    caliber = "39mm",
-    speed = 400,
+    description = "7.62x39mm Round",
+    caliber = "7.62x39mm",
+    speed = 715,       -- rifle muzzle velocity (~715 m/s), well above pistol rounds
     size = 0.5,
     texturesize = 20,
     texture = "bestguns_bullet_light.png",
     inventory_image = "bestguns_39mm.png",
     damage = 39,
     recoil = 1.4,
-    fire_sound = "bestguns_magnum_fire"
-})
-
-
-bestguns.register_bullet("bestguns:bullet_semi", {
-    description = "Semi-Auto Rifle Bullet",
-    caliber = "semi",
-    speed = 640,       -- 1.6x the assault rifle's 39mm round (400 * 1.6)
-    size = 0.5,
-    texturesize = 20,
-    texture = "bestguns_bullet_light.png",
-    inventory_image = "bestguns_39mm.png",
-    damage = 39,
-    recoil = 1.2,
-    fire_sound = "bestguns_machine_fire"
+    fire_sound = "bestguns_ak_fire"
 })
 
 
@@ -69,15 +59,15 @@ bestguns.register_bullet("bestguns:308", {
 --[[
 bestguns.register_bullet("bestguns:338", {
     description = ".338 Lapua Magnum",
-    caliber = ".308",
-    speed = 900,
+    caliber = ".338",
+    speed = 915,
     size = 2,
     texturesize = 20,
     texture = "bestguns_bullet_light.png",
-    inventory_image = "bestguns_308.png",
+    inventory_image = "bestguns_338.png",
     damage = 290,
     recoil = 22,
-    fire_sound = "bestguns_magnum_fire"
+    fire_sound = "bestguns_fire_338"
 })]]
 
 
@@ -174,7 +164,7 @@ bestguns.register_gun("bestguns:uzi", {
     mag_insert = "bestguns_mag_insert",
     mag_remove = "bestguns_mag_remove",
     inaccuracy = 6,
-    damage_mult = 0.3,
+    damage_mult = 0.51,   -- 9mm bullet (51) * 0.51 = 26 damage
     fire_delay = 0.04,
     action = "full",
     mag_capacity = 90,
@@ -235,7 +225,7 @@ bestguns.register_gun("bestguns:assault_rifle", {
     action = "full",
     loaded_texture = "bestguns_red_24.png",
     mag_capacity = 30,
-    caliber = "39mm",
+    caliber = "7.62x39mm",
 
     -- Custom particle effect
     on_fire = function(itemstack, user, bullet_entity)
@@ -303,7 +293,7 @@ bestguns.register_gun("bestguns:semi_auto_rifle", {
     action = "semi",
     loaded_texture = "bestguns_red_24.png",
     mag_capacity = 10,
-    caliber = "39mm",
+    caliber = "7.62x39mm",
 
     -- Custom particle effect (same muzzle flash + smoke as the assault rifle)
     on_fire = function(itemstack, user, bullet_entity)
@@ -340,90 +330,6 @@ bestguns.register_gun("bestguns:semi_auto_rifle", {
     end,
 
     -- Optional custom reload logic
-    on_reload = function(itemstack, user)
-      return
-    end
-})
-
-
-bestguns.register_bullet("bestguns:bullet_burst", {
-    description = "Burst Rifle Round",
-    caliber = "burst",
-    speed = 2000,      -- hypervelocity: near-hitscan across the map
-    size = 0.5,
-    texturesize = 20,
-    texture = "bestguns_bullet_light.png",
-    inventory_image = "bestguns_39mm.png",
-    damage = 39,
-    recoil = 1.2,
-    fire_sound = "bestguns_machine_fire"
-})
-bestguns.register_gun("bestguns:burst_rifle", {
-    description = "Burst Rifle",
-    texture_mag = "(bestguns_assault_rifle.png^bestguns_assault_rifle_mag.png)^[colorize:#2b5fd0:70",
-    texture_nomag = "bestguns_assault_rifle.png^[colorize:#2b5fd0:70",
-    texture_mag_item = "bestguns_assault_rifle_mag_empty.png^[colorize:#2b5fd0:70",
-    sound_fire = "bestguns_empty_click",
-    sound_empty = "bestguns_empty_click",
-    sound_reload = "bestguns_reload",
-    sound_load_mag = "bestguns_load_bullet",
-    mag_insert = "bestguns_mag_insert",
-    mag_remove = "bestguns_mag_remove",
-    default_bullet = "bestguns:bullet_burst",
-    inaccuracy = 1,
-    kick = 2.1,
-
-    -- 3-round burst per trigger pull; rounds are `burst_delay` apart and the
-    -- gun re-arms after the burst plus `burst_cooldown`. `fire_delay` is just the
-    -- per-round floor and must stay below burst_delay so the rounds all pass.
-    fire_delay = 0.015,
-    action = "burst",
-    burst_count = 3,
-    burst_delay = 0.046,
-    burst_cooldown = 0.18,
-
-    zoom = 0.6,
-    scope_size = 2,
-    zoomhud = true,
-    wield_scale = vector.new(2.6,2.6,1.6),
-    loaded_texture = "bestguns_red_24.png",
-    mag_capacity = 30,
-    caliber = "burst",
-
-    -- Custom particle effect (same muzzle flash + smoke as the assault rifle)
-    on_fire = function(itemstack, user, bullet_entity)
-        local pos = user:get_pos()
-        pos.y = pos.y + 1.5
-        local look_dir = user:get_look_dir()
-
-        for i=1, math.random(4,5) do
-          core.add_particle({
-            pos = vector.offset(vector.add(pos, vector.multiply(look_dir, 0.3)), bestguns.r(10)/100, bestguns.r(10)/100, bestguns.r(10)/100),
-            expirationtime = 0.0001,
-            size = math.random(9,12),
-            playername = user:get_player_name(),
-            texture = {name = "bestguns_muzzle_flash.png^[opacity:"..math.random(20)},
-            glow = 14,
-          })
-        end
-
-        bestguns.a_smoke(user, {
-          minsmokes = 5,
-          maxsmokes = 10,
-          size = 10,
-          base_opacity = 10,
-        })
-        bestguns.a_smoke(user, {
-          minsmokes = 5,
-          maxsmokes = 10,
-          size = 20,
-          acceleration = {x=0, y=8, z=0},
-          smoke_min_brightness = -50,
-          expirationtime = 10,
-          base_opacity = 10,
-        })
-    end,
-
     on_reload = function(itemstack, user)
       return
     end
@@ -595,6 +501,20 @@ bestguns.register_bullet("bestguns:bullet_44", {
     recoil = 3,
     fire_sound = "bestguns_44"
 })
+
+
+bestguns.register_bullet("bestguns:bullet_50", {
+    description = ".50 Action Express Bullet",
+    caliber = ".50",
+    speed = 450,
+    size = 0.35,
+    texture = "bestguns_bullet_light.png",
+    inventory_image = "bestguns_50.png",
+    damage = 107,
+    recoil = 3,
+    fire_sound = "bestguns_deagle_fire"
+})
+
 bestguns.register_gun("bestguns:revolver", {
     description = ".44 Magnum Revolver",
     texture_nomag = "bestguns_revolver.png",
@@ -608,6 +528,7 @@ bestguns.register_gun("bestguns:revolver", {
     default_bullet = "bestguns:bullet_44",
     loaded_texture = "bestguns_red_20.png",
     inaccuracy = 0.7,
+    damage_mult = 0.9,   -- .44 bullet (93) * 0.9 = 83 damage
     fire_delay = 0.1,
     wield_scale = vector.new(1.1, 1.1, 1.1),
     action = "semi",
@@ -638,6 +559,469 @@ bestguns.register_gun("bestguns:revolver", {
         })
     end
 })
+
+-- =============================================================================
+-- Additional weapons: alternate takes on the pistol / SMG / rifle / shotgun /
+-- revolver families, reusing the ammo already defined above.
+-- =============================================================================
+
+bestguns.register_gun("bestguns:glock", {
+    description = "Glock 17",
+    default_bullet = "bestguns:bullet_9mm",
+    texture_mag = "bestguns_glock.png^bestguns_glock_mag.png",
+    texture_nomag = "bestguns_glock.png",
+    texture_mag_item = "bestguns_glock_mag.png",
+    loaded_texture = "bestguns_red_20.png",
+    sound_fire = "bestguns_empty_click",
+    sound_empty = "bestguns_empty_click",
+    sound_reload = "bestguns_reload",
+    sound_load_mag = "bestguns_load_bullet",
+    mag_insert = "bestguns_mag_insert",
+    mag_remove = "bestguns_mag_remove",
+    inaccuracy = 0.8,
+    damage_mult = 1.99,   -- 9mm bullet (51) * 1.99 = 101 damage
+    fire_delay = 0.18,
+    action = "semi",
+    mag_capacity = 17,
+    caliber = "9mm",
+
+    -- Custom particle effect
+    on_fire = function(itemstack, user, bullet_entity)
+        local pos = user:get_pos()
+        pos.y = pos.y + 1.5
+        local look_dir = user:get_look_dir()
+
+        for i=1, math.random(4,5) do
+          core.add_particle({
+            pos = vector.offset(vector.add(pos, vector.multiply(look_dir, 0.3)), bestguns.r(10)/100, bestguns.r(10)/100, bestguns.r(10)/100),
+            expirationtime = 0.0001,
+            size = math.random(9,12),
+            playername = user:get_player_name(),
+            texture = {name = "bestguns_muzzle_flash.png^[opacity:"..math.random(10)},
+            glow = 14,
+          })
+        end
+
+        bestguns.a_smoke(user, {
+          minsmokes = 20,
+          maxsmokes = 30,
+          size = 10,
+          base_opacity = 20,
+        })
+    end,
+
+    on_reload = function(itemstack, user)
+      return
+    end
+})
+
+
+bestguns.register_gun("bestguns:deagle", {
+    description = "Desert Eagle",
+    default_bullet = "bestguns:bullet_50",
+    texture_mag = "bestguns_deagle.png^bestguns_deagle_mag.png",
+    texture_nomag = "bestguns_deagle.png",
+    texture_mag_item = "bestguns_deagle_mag.png",
+    loaded_texture = "bestguns_red_20.png",
+    sound_fire = "bestguns_empty_click",
+    sound_empty = "bestguns_empty_click",
+    sound_reload = "bestguns_reload",
+    sound_load_mag = "bestguns_load_bullet",
+    mag_insert = "bestguns_mag_insert",
+    mag_remove = "bestguns_mag_remove",
+    inaccuracy = 1.5,
+    kick = 4,
+    fire_delay = 0.35,
+    wield_scale = vector.new(1.2, 1.2, 1.2),
+    action = "semi",
+    mag_capacity = 7,
+    caliber = ".50",
+
+    -- Custom particle effect
+    on_fire = function(itemstack, user, bullet_entity)
+        local pos = user:get_pos()
+        pos.y = pos.y + 1.5
+        local look_dir = user:get_look_dir()
+
+        for i=1, math.random(4,6) do
+          core.add_particle({
+            pos = vector.offset(vector.add(pos, vector.multiply(look_dir, 0.3)), bestguns.r(10)/100, bestguns.r(10)/100, bestguns.r(10)/100),
+            expirationtime = 0.0001,
+            size = math.random(10,14),
+            playername = user:get_player_name(),
+            texture = {name = "bestguns_muzzle_flash.png^[opacity:"..math.random(15)},
+            glow = 14,
+          })
+        end
+
+        bestguns.a_smoke(user, {
+          minsmokes = 20,
+          maxsmokes = 35,
+          size = 12,
+          base_opacity = 25,
+        })
+    end,
+
+    on_reload = function(itemstack, user)
+      return
+    end
+})
+
+
+bestguns.register_gun("bestguns:ak47", {
+    description = "AK-47",
+    texture_mag = "bestguns_ak47.png^bestguns_ak47_mag.png",
+    texture_nomag = "bestguns_ak47.png",
+    texture_mag_item = "bestguns_ak47_mag.png",
+    sound_fire = "bestguns_empty_click",
+    sound_empty = "bestguns_empty_click",
+    sound_reload = "bestguns_reload",
+    sound_load_mag = "bestguns_load_bullet",
+    mag_insert = "bestguns_mag_insert",
+    mag_remove = "bestguns_mag_remove",
+    default_bullet = "bestguns:bullet_39mm",
+    inaccuracy = 2,     -- looser than the Assault Rifle's 1.2: iconic spray-and-pray
+    damage_mult = 1.15,
+    kick = 2.6,
+
+    fire_delay = 0.1,   -- slightly slower cyclic rate than the Assault Rifle's 0.08
+    action = "full",
+    wield_scale = vector.new(2.6,2.6,1.6),
+    loaded_texture = "bestguns_red_24.png",
+    mag_capacity = 30,
+    caliber = "7.62x39mm",
+
+    -- Custom particle effect (same muzzle flash + smoke as the Assault Rifle)
+    on_fire = function(itemstack, user, bullet_entity)
+        local pos = user:get_pos()
+        pos.y = pos.y + 1.5
+        local look_dir = user:get_look_dir()
+
+        for i=1, math.random(4,5) do
+          core.add_particle({
+            pos = vector.offset(vector.add(pos, vector.multiply(look_dir, 0.3)), bestguns.r(10)/100, bestguns.r(10)/100, bestguns.r(10)/100),
+            expirationtime = 0.0001,
+            size = math.random(9,12),
+            playername = user:get_player_name(),
+            texture = {name = "bestguns_muzzle_flash.png^[opacity:"..math.random(20)},
+            glow = 14,
+          })
+        end
+
+        bestguns.a_smoke(user, {
+          minsmokes = 5,
+          maxsmokes = 10,
+          size = 10,
+          base_opacity = 10,
+        })
+        bestguns.a_smoke(user, {
+          minsmokes = 5,
+          maxsmokes = 10,
+          size = 20,
+          acceleration = {x=0, y=8, z=0},
+          smoke_min_brightness = -50,
+          expirationtime = 10,
+          base_opacity = 10,
+        })
+    end,
+
+    on_reload = function(itemstack, user)
+      return
+    end
+})
+
+
+-- The carbine's own cartridge: the M1 Carbine's real .30 Carbine round. Its own
+-- caliber so it no longer shares the AK/Assault-Rifle 7.62x39mm ammo, letting it
+-- run a distinct muzzle velocity (812 m/s) without touching those guns.
+bestguns.register_bullet("bestguns:bullet_carbine", {
+    description = ".30 Carbine Round",
+    caliber = ".30 Carbine",
+    speed = 812,
+    size = 0.5,
+    texturesize = 20,
+    texture = "bestguns_bullet_light.png",
+    inventory_image = "bestguns_39mm.png",   -- TODO: dedicated art
+    damage = 39,                             -- carbine's damage_mult of 2 -> 78 damage
+    recoil = 1.4,
+    fire_sound = "bestguns_carbine_fire"
+})
+
+bestguns.register_gun("bestguns:carbine", {
+    description = "Carbine",
+    texture_mag = "bestguns_carbine.png^bestguns_carbine_mag.png",
+    texture_nomag = "bestguns_carbine.png",
+    texture_mag_item = "bestguns_carbine_mag.png",
+    sound_fire = "bestguns_empty_click",
+    sound_empty = "bestguns_empty_click",
+    sound_reload = "bestguns_reload",
+    sound_load_mag = "bestguns_load_bullet",
+    mag_insert = "bestguns_mag_insert",
+    mag_remove = "bestguns_mag_remove",
+    default_bullet = "bestguns:bullet_carbine",
+    inaccuracy = 0.5,   -- tighter than the AK's 2, looser than the Semi-Auto Rifle's 0.15
+    damage_mult = 2,    -- .30 Carbine bullet (39) * 2 = 78 damage
+    kick = 1.8,
+
+    fire_delay = 0.09,  -- quicker handling than the Semi-Auto Rifle's 0.14 marksman cadence
+    action = "full",
+    wield_scale = vector.new(2.2,2.2,1.4),
+    loaded_texture = "bestguns_red_24.png",
+    mag_capacity = 20,
+    caliber = ".30 Carbine",
+
+    -- Custom particle effect (same muzzle flash + smoke as the Assault Rifle)
+    on_fire = function(itemstack, user, bullet_entity)
+        local pos = user:get_pos()
+        pos.y = pos.y + 1.5
+        local look_dir = user:get_look_dir()
+
+        for i=1, math.random(4,5) do
+          core.add_particle({
+            pos = vector.offset(vector.add(pos, vector.multiply(look_dir, 0.3)), bestguns.r(10)/100, bestguns.r(10)/100, bestguns.r(10)/100),
+            expirationtime = 0.0001,
+            size = math.random(9,12),
+            playername = user:get_player_name(),
+            texture = {name = "bestguns_muzzle_flash.png^[opacity:"..math.random(20)},
+            glow = 14,
+          })
+        end
+
+        bestguns.a_smoke(user, {
+          minsmokes = 5,
+          maxsmokes = 10,
+          size = 10,
+          base_opacity = 10,
+        })
+        bestguns.a_smoke(user, {
+          minsmokes = 5,
+          maxsmokes = 10,
+          size = 20,
+          acceleration = {x=0, y=8, z=0},
+          smoke_min_brightness = -50,
+          expirationtime = 10,
+          base_opacity = 10,
+        })
+    end,
+
+    on_reload = function(itemstack, user)
+      return
+    end
+})
+
+
+-- The Thompson's real cartridge: big, slow, hard-hitting .45 ACP. Lower velocity
+-- and more punch per round than the 9mm pistol calibers.
+bestguns.register_bullet("bestguns:bullet_45acp", {
+    description = ".45 ACP Round",
+    caliber = ".45 ACP",
+    speed = 400,
+    size = 0.25,
+    texture = "bestguns_bullet.png",
+    inventory_image = "bestguns_45acp.png",   -- TODO: art
+    damage = 62,
+    recoil = 1.6,
+    fire_sound = "bestguns_fire_45acp"        -- TODO: sound
+})
+
+-- A drum-fed .45 ACP submachine gun: heavier and better controlled than the Uzi
+-- (lower inaccuracy) but with a slower cyclic rate.
+bestguns.register_gun("bestguns:tommy", {
+    description = "Tommy Gun",
+    default_bullet = "bestguns:bullet_45acp",
+    texture_mag = "bestguns_tommy.png^bestguns_tommy_mag.png",
+    texture_nomag = "bestguns_tommy.png",
+    texture_mag_item = "bestguns_tommy_mag.png",
+    loaded_texture = "bestguns_red_20.png",
+    sound_fire = "bestguns_empty_click",
+    sound_empty = "bestguns_empty_click",
+    sound_reload = "bestguns_reload",
+    sound_load_mag = "bestguns_load_bullet",
+    mag_insert = "bestguns_mag_insert",
+    mag_remove = "bestguns_mag_remove",
+    inaccuracy = 4,
+    damage_mult = 0.5,
+    kick = 2,
+    fire_delay = 0.06,
+    action = "full",
+    wield_scale = vector.new(1.6,1.6,1.3),
+    mag_capacity = 50,  -- classic drum magazine
+    caliber = ".45 ACP",
+
+    -- Custom particle effect (same muzzle flash + smoke as the Uzi)
+    on_fire = function(itemstack, user, bullet_entity)
+        local pos = user:get_pos()
+        pos.y = pos.y + 1.5
+        local look_dir = user:get_look_dir()
+
+        for i=1, math.random(4,15) do
+          core.add_particle({
+            pos = vector.offset(vector.add(pos, vector.multiply(look_dir, 0.3)), bestguns.r(10)/100, bestguns.r(10)/100, bestguns.r(10)/100),
+            expirationtime = 0.0001,
+            size = math.random(9,12),
+            playername = user:get_player_name(),
+            texture = {name = "bestguns_muzzle_flash.png^[opacity:"..math.random(10)},
+            glow = 14,
+          })
+        end
+
+        bestguns.a_smoke(user, {
+          minsmokes = 20,
+          maxsmokes = 30,
+          size = 10,
+          base_opacity = 2,
+        })
+    end,
+
+    on_reload = function(itemstack, user)
+      return
+    end
+})
+
+
+-- A compact break-action shotgun: quicker to reload and fire again than the
+-- full Shotgun, at the cost of noticeably harsher recoil.
+bestguns.register_gun("bestguns:sawed_shotgun", {
+    description = "Sawed-Off Shotgun",
+    texture_nomag = "bestguns_sawed_shotgun.png",
+    texture_open = "bestguns_sawed_shotgun_open.png",
+    sound_fire = "bestguns_shotgun_sawed_fire",
+    sound_empty = "bestguns_shotgun_trigger",
+    sound_reload = "bestguns_reload",
+    sound_load_mag = "bestguns_shotgun_load",
+    sound_open = "bestguns_shotgun_open",
+    sound_close = "bestguns_shotgun_close",
+    default_bullet = "bestguns:12_gauge",
+    loaded_texture = "bestguns_red_20.png",
+    load_speed = 0.5,
+    fire_delay = 0.2,
+    kick = 3,
+    kick_time = 0.1,
+    wield_scale = vector.new(1.3,1.3,1.6),
+    action = "semi",
+    load_action = "direct",
+    mag_capacity = 2,   -- double barrel
+    caliber = "12gauge",
+
+    -- Custom particle effect (same pellet-spray logic as the Shotgun)
+    on_fire = function(itemstack, user, bullet_entity)
+
+      local meta = itemstack:get_meta()
+      local bullet_name = meta:get_string("bullet_name")
+      local b_def = bestguns.registered_bullets[bullet_name]
+      if not b_def then return nil end
+      local eye_height = user:get_properties().eye_height or 1.625
+      local pos = vector.add(user:get_pos(), {x=0, y=eye_height, z=0})
+      local bullet_vel = vector.multiply(user:get_look_dir(), b_def.speed or 100)
+
+      for i=1, b_def.shots do
+        local obj = core.add_entity(pos, "bestguns:bullet", core.serialize({
+            velocity = vector.offset(bullet_vel, bestguns.r(120), bestguns.r(120), bestguns.r(120)),  -- wider spread than the full Shotgun's r(90)
+            shooter_name = user:get_player_name(),
+            _item = bullet_name,
+            _drops = b_def.drops,
+            damage = math.floor((b_def.damage or 1) * bestguns.damage_scale),
+            texture = b_def.texture,
+            size = b_def.size or 1
+        }))
+      end
+
+      local pos = user:get_pos()
+      pos.y = pos.y + 1.5
+      local look_dir = user:get_look_dir()
+      for i=1, math.random(4,10) do
+        core.add_particle({
+          pos = vector.offset(vector.add(pos, vector.multiply(look_dir, 0.3)), bestguns.r(10)/100, bestguns.r(10)/100, bestguns.r(10)/100),
+          expirationtime = 0.01,
+          size = math.random(9,22),
+          playername = user:get_player_name(),
+          texture = {name = "bestguns_muzzle_flash.png^[opacity:"..math.random(20)},
+          glow = 14,
+        })
+      end
+
+      bestguns.a_smoke(user, {
+        minsmokes = 20,
+        maxsmokes = 40,
+        size = 10,
+        base_opacity = 40,
+      })
+      bestguns.a_smoke(user, {
+        minsmokes = 20,
+        maxsmokes = 100,
+        size = 40,
+        smoke_min_brightness = -100,
+        acceleration = {x=3, y=8, z=3},
+        expirationtime = 10.,
+        base_opacity = 30,
+      })
+
+      return true
+    end,
+
+    on_reload = function(itemstack, user)
+      return
+    end
+})
+
+
+bestguns.register_bullet("bestguns:bullet_38", {
+    description = ".38 Special Round",
+    caliber = ".38",
+    speed = 500,
+    size = 0.3,
+    texture = "bestguns_bullet_light.png",
+    inventory_image = "bestguns_38.png",   -- TODO: art (was borrowing the .44's icon)
+    damage = 66,
+    recoil = 2,
+    fire_sound = "bestguns_fire_38"        -- TODO: sound (was borrowing the .44's)
+})
+-- A compact, concealable revolver: less accurate than the .44 Magnum Revolver
+-- (short sight radius) but faster-handling and lighter-hitting.
+bestguns.register_gun("bestguns:snub_revolver", {
+    description = ".38 Snub-Nose Revolver",
+    texture_nomag = "bestguns_snub_revolver.png",
+    texture_open = "bestguns_snub_revolver_open.png",
+    sound_fire = "bestguns_empty_click",
+    sound_empty = "bestguns_empty_click",
+    sound_reload = "bestguns_reload",
+    sound_load_mag = "bestguns_load_revolver",
+    sound_open = "bestguns_revolver_open", -- Reusing open/close sounds
+    sound_close = "bestguns_revolver_close",
+    default_bullet = "bestguns:bullet_38",
+    loaded_texture = "bestguns_red_20.png",
+    inaccuracy = 1.5,
+    fire_delay = 0.12,
+    wield_scale = vector.new(0.9, 0.9, 0.9),
+    action = "semi",
+    load_action = "direct",
+    mag_capacity = 5,   -- classic 5-shot snub cylinder
+    caliber = ".38",
+
+    on_fire = function(itemstack, user, bullet_entity)
+        local pos = user:get_pos()
+        pos.y = pos.y + 1.5
+        local look_dir = user:get_look_dir()
+
+        for i=1, math.random(4,5) do
+          core.add_particle({
+            pos = vector.offset(vector.add(pos, vector.multiply(look_dir, 0.3)), bestguns.r(10)/100, bestguns.r(10)/100, bestguns.r(10)/100),
+            expirationtime = 0.0001,
+            size = math.random(9,12),
+            playername = user:get_player_name(),
+            texture = {name = "bestguns_muzzle_flash.png^[opacity:"..math.random(20)},
+            glow = 14,
+          })
+        end
+        bestguns.a_smoke(user, {
+          minsmokes = 20,
+          maxsmokes = 40,
+          size = 10,
+          base_opacity = 40,
+        })
+    end
+})
+
 
 -- CTF integration (loot, class loadouts, combat) lives in the separate
 -- bestguns_ctf mod (mods/ctf/ctf_combat/bestguns_ctf).
