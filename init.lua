@@ -523,7 +523,7 @@ bestguns.register_bullet("bestguns:bullet_50", {
     size = 0.35,
     texture = "bestguns_bullet_light.png",
     inventory_image = "bestguns_50.png",
-    damage = 107,
+    damage = 119,
     recoil = 3,
     fire_sound = "bestguns_deagle_fire"
 })
@@ -592,7 +592,7 @@ bestguns.register_gun("bestguns:glock", {
     mag_insert = "bestguns_mag_insert",
     mag_remove = "bestguns_mag_remove",
     inaccuracy = 0.8,
-    damage_mult = 1.99,   -- 9mm bullet (51) * 1.99 = 101 damage
+    damage_mult = 1,   -- 9mm bullet (51) * 1.99 = 101 damage
     fire_delay = 0.18,
     action = "semi",
     mag_capacity = 17,
@@ -755,7 +755,7 @@ bestguns.register_bullet("bestguns:bullet_carbine", {
     texturesize = 20,
     texture = "bestguns_bullet_light.png",
     inventory_image = "bestguns_30mm.png",   -- TODO: dedicated art
-    damage = 39,                             -- carbine's damage_mult of 2 -> 78 damage
+    damage = 26,                             -- carbine's damage_mult of 2 -> 78 damage
     recoil = 1.4,
     fire_sound = "bestguns_carbine_fire"
 })
@@ -772,7 +772,7 @@ bestguns.register_gun("bestguns:carbine", {
     mag_insert = "bestguns_mag_insert",
     mag_remove = "bestguns_mag_remove",
     default_bullet = "bestguns:bullet_carbine",
-    inaccuracy = 0.5,   -- tighter than the AK's 2, looser than the Semi-Auto Rifle's 0.15
+    inaccuracy = 0.8,   -- tighter than the AK's 2, looser than the Semi-Auto Rifle's 0.15
     damage_mult = 2,    -- .30 Carbine bullet (39) * 2 = 78 damage
     kick = 1.8,
     zoom = 0.2,
@@ -988,7 +988,7 @@ bestguns.register_bullet("bestguns:bullet_38", {
     size = 0.3,
     texture = "bestguns_bullet_light.png",
     inventory_image = "bestguns_38.png",   -- TODO: art (was borrowing the .44's icon)
-    damage = 66,
+    damage = 79,
     recoil = 2,
     fire_sound = "bestguns_fire_38"        -- TODO: sound (was borrowing the .44's)
 })
