@@ -110,6 +110,8 @@ bestguns.register_bullet("bestguns:12_gauge", {
 --[[
 bestguns.register_gun("bestguns:pistol", {
     description = "9mm Pistol",
+    one_handed = true,   -- sidearm: held/posed in the right hand only
+    gun_range = 0.3,     -- short barrel, sidearm: damage falls off fast
     default_bullet = "bestguns:bullet_9mm",
     texture_mag = "bestguns_pistol.png^bestguns_pistol_mag.png",
     texture_nomag = "bestguns_pistol.png",
@@ -165,6 +167,8 @@ bestguns.register_gun("bestguns:pistol", {
 -- 1.4x faster than its original 0.04s delay (0.04 / 1.4 ~= 0.0286).
 bestguns.register_gun("bestguns:uzi", {
     description = "Uzi",
+    one_handed = true,   -- compact SMG: held/posed in the right hand only
+    gun_range = 0.35,    -- SMG: effective at close-to-mid range
     default_bullet = "bestguns:bullet_9mm",
     texture_mag = "bestguns_uzi.png^bestguns_uzi_mag.png",
     texture_nomag = "bestguns_uzi.png",
@@ -177,6 +181,7 @@ bestguns.register_gun("bestguns:uzi", {
     mag_insert = "bestguns_mag_insert",
     mag_remove = "bestguns_mag_remove",
     inaccuracy = 6,
+    wield_scale = vector.new(1.5,1.5,1.2),
     damage_mult = 0.51,   -- 9mm bullet (51) * 0.51 = 26 damage
     fire_delay = 0.04,
     action = "full",
@@ -217,6 +222,7 @@ bestguns.register_gun("bestguns:uzi", {
 
 bestguns.register_gun("bestguns:assault_rifle", {
     description = "Assault Rifle",
+    gun_range = 0.75,    -- rifle: holds damage well out to range
     texture_mag = "bestguns_assault_rifle.png^bestguns_assault_rifle_mag.png",
     texture_nomag = "bestguns_assault_rifle.png",
     texture_mag_item = "bestguns_assault_rifle_mag_empty.png",
@@ -234,7 +240,7 @@ bestguns.register_gun("bestguns:assault_rifle", {
     zoom = 0.7,
     scope_size = 2,
     zoomhud = true,
-    wield_scale = vector.new(2.6,2.6,1.6),
+    wield_scale = vector.new(2.2,2.2,1.4),
     action = "full",
     loaded_texture = "bestguns_red_24.png",
     mag_capacity = 30,
@@ -284,6 +290,7 @@ bestguns.register_gun("bestguns:assault_rifle", {
 
 bestguns.register_gun("bestguns:semi_auto_rifle", {
     description = "Semi-Auto Rifle",
+    gun_range = 0.85,    -- marksman rifle: nearly sniper-tier reach
     texture_mag = "bestguns_semi_auto_rifle.png^bestguns_semi_auto_rifle_mag.png",
     texture_nomag = "bestguns_semi_auto_rifle.png",
     texture_mag_item = "bestguns_semi_auto_rifle_mag_empty.png",
@@ -302,7 +309,7 @@ bestguns.register_gun("bestguns:semi_auto_rifle", {
     zoom = 0.16,
     scope_size = 1.3,
     zoomhud = true,
-    wield_scale = vector.new(2.6,2.6,1.6),
+    wield_scale = vector.new(2.2,2.2,1.4),
     action = "semi",
     loaded_texture = "bestguns_red_24.png",
     mag_capacity = 10,
@@ -351,6 +358,7 @@ bestguns.register_gun("bestguns:semi_auto_rifle", {
 
 bestguns.register_gun("bestguns:shotgun", {
     description = "Shotgun",
+    gun_range = 0.25,    -- pellets bleed energy fast: a close-range weapon
     texture_nomag = "bestguns_shotgun.png",
     texture_open = "bestguns_shotgun_open.png",
     sound_fire = "bestguns_shotgun_trigger",
@@ -382,8 +390,9 @@ bestguns.register_gun("bestguns:shotgun", {
       local pos = vector.add(user:get_pos(), {x=0, y=eye_height, z=0})
       local bullet_vel = vector.multiply(user:get_look_dir(), b_def.speed or 100)
 
+      local def = bestguns.registered_guns["bestguns:shotgun"]
       for i=1, b_def.shots do
-        local obj = core.add_entity(pos, "bestguns:bullet", core.serialize({
+        local data = {
             velocity = vector.offset(bullet_vel, bestguns.r(90), bestguns.r(90), bestguns.r(90)),
             shooter_name = user:get_player_name(),
             _item = bullet_name,
@@ -391,7 +400,9 @@ bestguns.register_gun("bestguns:shotgun", {
             damage = math.floor((b_def.damage or 1) * bestguns.damage_scale),
             texture = b_def.texture,
             size = b_def.size or 1
-        }))
+        }
+        bestguns.apply_range(data, def)
+        local obj = core.add_entity(pos, "bestguns:bullet", core.serialize(data))
       end
 
 
@@ -440,6 +451,7 @@ bestguns.register_gun("bestguns:shotgun", {
 
 bestguns.register_gun("bestguns:bolt_sniper", {
     description = "Bolt Action Rifle",
+    gun_range = 1.0,     -- sniper: full damage at the longest ranges
     texture_nomag = "bestguns_assault_bold_sniper.png",
     texture_open = "bestguns_assault_bold_sniper_open.png",
     sound_fire = "bestguns_shotgun_trigger",
@@ -455,7 +467,7 @@ bestguns.register_gun("bestguns:bolt_sniper", {
     cancel_scope_on_fire = true,
     zoomhud = true,
     fire_delay = 0,
-    wield_scale = vector.new(1.8,1.8,1.8),
+    wield_scale = vector.new(2.8,2.8,2.1),
     action = "semi",
     load_action = "direct",
     mag_capacity = 1,
@@ -530,6 +542,8 @@ bestguns.register_bullet("bestguns:bullet_50", {
 
 bestguns.register_gun("bestguns:revolver", {
     description = ".44 Magnum Revolver",
+    one_handed = true,   -- handgun: held/posed in the right hand only
+    gun_range = 0.5,     -- powerful handgun: decent mid-range punch
     texture_nomag = "bestguns_revolver.png",
     texture_open = "bestguns_revolver_open.png",
     sound_fire = "bestguns_empty_click",
@@ -543,7 +557,7 @@ bestguns.register_gun("bestguns:revolver", {
     inaccuracy = 0.7,
     damage_mult = 0.9,   -- .44 bullet (93) * 0.9 = 83 damage
     fire_delay = 0.1,
-    wield_scale = vector.new(1.1, 1.1, 1.1),
+    wield_scale = vector.new(1.4, 1.4, 1.4),
     action = "semi",
     load_action = "direct",
     mag_capacity = 6,
@@ -580,6 +594,8 @@ bestguns.register_gun("bestguns:revolver", {
 
 bestguns.register_gun("bestguns:glock", {
     description = "Glock 17",
+    one_handed = true,   -- sidearm: held/posed in the right hand only
+    gun_range = 0.3,     -- sidearm: short effective range
     default_bullet = "bestguns:bullet_9mm",
     texture_mag = "bestguns_glock.png^bestguns_glock_mag.png",
     texture_nomag = "bestguns_glock.png",
@@ -591,6 +607,7 @@ bestguns.register_gun("bestguns:glock", {
     sound_load_mag = "bestguns_load_bullet",
     mag_insert = "bestguns_mag_insert",
     mag_remove = "bestguns_mag_remove",
+    wield_scale = vector.new(1.3,1.3,1.3),
     inaccuracy = 0.8,
     damage_mult = 1,   -- 9mm bullet (51) * 1.99 = 101 damage
     fire_delay = 0.18,
@@ -631,6 +648,8 @@ bestguns.register_gun("bestguns:glock", {
 
 bestguns.register_gun("bestguns:deagle", {
     description = "Desert Eagle",
+    one_handed = true,   -- hand cannon: held/posed in the right hand only
+    gun_range = 0.45,    -- hand cannon: reaches a bit past most pistols
     default_bullet = "bestguns:bullet_50",
     texture_mag = "bestguns_deagle.png^bestguns_deagle_mag.png",
     texture_nomag = "bestguns_deagle.png",
@@ -645,7 +664,7 @@ bestguns.register_gun("bestguns:deagle", {
     inaccuracy = 1.5,
     kick = 4,
     fire_delay = 0.35,
-    wield_scale = vector.new(1.2, 1.2, 1.2),
+    wield_scale = vector.new(1.4, 1.4, 1.4),
     action = "semi",
     mag_capacity = 7,
     caliber = ".50",
@@ -683,6 +702,7 @@ bestguns.register_gun("bestguns:deagle", {
 
 bestguns.register_gun("bestguns:ak47", {
     description = "AK-47",
+    gun_range = 0.7,     -- rifle: strong out to range, just short of the AR
     texture_mag = "bestguns_ak47.png^bestguns_ak47_mag.png",
     texture_nomag = "bestguns_ak47.png",
     texture_mag_item = "bestguns_ak47_mag_empty.png",
@@ -700,7 +720,7 @@ bestguns.register_gun("bestguns:ak47", {
 
     fire_delay = 0.1,   -- slightly slower cyclic rate than the Assault Rifle's 0.08
     action = "full",
-    wield_scale = vector.new(2.6,2.6,1.6),
+    wield_scale = vector.new(2.2,2.2,1.3),
     mag_capacity = 30,
     caliber = "7.62x39mm",
 
@@ -762,6 +782,7 @@ bestguns.register_bullet("bestguns:bullet_carbine", {
 
 bestguns.register_gun("bestguns:carbine", {
     description = "Carbine",
+    gun_range = 0.6,     -- carbine: mid-range, between rifle and pistol
     texture_mag = "bestguns_carbine.png^bestguns_carbine_mag.png",
     texture_nomag = "bestguns_carbine.png",
     texture_mag_item = "bestguns_carbine_mag_empty.png",
@@ -844,6 +865,7 @@ bestguns.register_bullet("bestguns:bullet_45acp", {
 -- (lower inaccuracy) but with a slower cyclic rate.
 bestguns.register_gun("bestguns:tommy", {
     description = "Tommy Gun",
+    gun_range = 0.35,    -- SMG: close-to-mid range
     default_bullet = "bestguns:bullet_45acp",
     texture_mag = "bestguns_tommy.png^bestguns_tommy_mag.png",
     texture_nomag = "bestguns_tommy.png",
@@ -860,7 +882,7 @@ bestguns.register_gun("bestguns:tommy", {
     kick = 2,
     fire_delay = 0.06,
     action = "full",
-    wield_scale = vector.new(1.6,1.6,1.3),
+    wield_scale = vector.new(3.2,3.2,2.3),
     mag_capacity = 50,  -- classic drum magazine
     caliber = ".45 ACP",
 
@@ -899,6 +921,7 @@ bestguns.register_gun("bestguns:tommy", {
 -- full Shotgun, at the cost of noticeably harsher recoil.
 bestguns.register_gun("bestguns:sawed_shotgun", {
     description = "Sawed-Off Shotgun",
+    gun_range = 0.15,    -- cut barrel: brutal up close, useless at range
     texture_nomag = "bestguns_sawed_shotgun.png",
     texture_open = "bestguns_sawed_shotgun_open.png",
     sound_fire = "bestguns_shotgun_sawed_fire",
@@ -913,7 +936,7 @@ bestguns.register_gun("bestguns:sawed_shotgun", {
     fire_delay = 0.2,
     kick = 3,
     kick_time = 0.1,
-    wield_scale = vector.new(1.3,1.3,1.6),
+    wield_scale = vector.new(2,2,2.8),
     action = "semi",
     load_action = "direct",
     mag_capacity = 2,   -- double barrel
@@ -930,8 +953,9 @@ bestguns.register_gun("bestguns:sawed_shotgun", {
       local pos = vector.add(user:get_pos(), {x=0, y=eye_height, z=0})
       local bullet_vel = vector.multiply(user:get_look_dir(), b_def.speed or 100)
 
+      local def = bestguns.registered_guns["bestguns:sawed_shotgun"]
       for i=1, b_def.shots do
-        local obj = core.add_entity(pos, "bestguns:bullet", core.serialize({
+        local data = {
             velocity = vector.offset(bullet_vel, bestguns.r(120), bestguns.r(120), bestguns.r(120)),  -- wider spread than the full Shotgun's r(90)
             shooter_name = user:get_player_name(),
             _item = bullet_name,
@@ -939,7 +963,9 @@ bestguns.register_gun("bestguns:sawed_shotgun", {
             damage = math.floor((b_def.damage or 1) * bestguns.damage_scale),
             texture = b_def.texture,
             size = b_def.size or 1
-        }))
+        }
+        bestguns.apply_range(data, def)
+        local obj = core.add_entity(pos, "bestguns:bullet", core.serialize(data))
       end
 
       local pos = user:get_pos()
@@ -996,6 +1022,8 @@ bestguns.register_bullet("bestguns:bullet_38", {
 -- (short sight radius) but faster-handling and lighter-hitting.
 bestguns.register_gun("bestguns:snub_revolver", {
     description = ".38 Snub-Nose Revolver",
+    one_handed = true,   -- snub-nose handgun: held/posed in the right hand only
+    gun_range = 0.35,    -- snub barrel: short effective range
     texture_nomag = "bestguns_snub_revolver.png",
     texture_open = "bestguns_snub_revolver_open.png",
     sound_fire = "bestguns_empty_click",
@@ -1008,7 +1036,7 @@ bestguns.register_gun("bestguns:snub_revolver", {
     loaded_texture = "bestguns_red_20.png",
     inaccuracy = 1.5,
     fire_delay = 0.12,
-    wield_scale = vector.new(0.9, 0.9, 0.9),
+    wield_scale = vector.new(1, 1, 1),
     action = "semi",
     load_action = "direct",
     mag_capacity = 5,   -- classic 5-shot snub cylinder
