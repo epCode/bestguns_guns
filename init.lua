@@ -1011,5 +1011,522 @@ bestguns.register_gun("bestguns:snub_revolver", {
 })
 
 
+-- =============================================================================
+-- Frag grenade
+-- =============================================================================
+--
+-- A thrown fragmentation grenade, worked like the real thing:
+--   * RMB pulls the pin (a pin-pull sound plays). The fuse starts immediately
+--     and runs no matter what - whether the grenade is thrown or kept in hand.
+--   * LMB throws it, any time: before the pin is pulled (an inert dud that lands
+--     and drops back as a recoverable item) or after (it cooks off in flight).
+--   * If the fuse runs out while it's still in your hand, it blows up on you.
+-- On detonation it sprays 20-40 fragments outward in every direction. Each
+-- fragment is a real bestguns bullet (speed 150), so it carries the exact same
+-- smoke trail and raycast hit detection as any other round - the grenade kills by
+-- fragmentation, like the real thing. The blast deals no separate splash damage:
+-- everything is the fragments.
+--
+-- Sounds are placeholders for now (TODO: drop the real ogg files in sounds/).
+
+local FRAG_FUSE            = 3   -- seconds from the throw to detonation
+local FRAG_THROW_SPEED     = 16.2  -- initial lob speed along the look direction
+local FRAG_BOUNCE          = 0.45  -- restitution: fraction of speed kept normal to a surface
+local FRAG_FRICTION        = 0.84   -- fraction of speed kept along a surface each bounce
+local FRAG_MIN_FRAGMENTS   = 5
+local FRAG_MAX_FRAGMENTS   = 30
+local FRAG_FRAGMENT_SPEED  = 150   -- speed of each fragment (acts as a bullet)
+local FRAG_BLAST_RADIUS    = 9.2   -- close-range shockwave reach (nodes)
+local FRAG_BLAST_DAMAGE    = 200    -- shockwave HP at the centre, before damage_scale
+local FRAG_RING_HEAR       = 8    -- max hear distance of the ears-ringing sound
+local FRAG_BLIND_RADIUS    = 8     -- flash-blinds players within this many nodes
+local FRAG_BLIND_LOOK_DOT  = 0.4   -- must be facing the blast within this cone (dot)
+local FRAG_FLASH_TIME      = 2.5   -- seconds for the white overlay to fully fade
+
+-- Placeholder sound names (TODO: real audio).
+local FRAG_SOUND_PIN     = "bestguns_frag_pin"
+local FRAG_SOUND_THROW   = "bestguns_frag_throw"
+local FRAG_SOUND_BOUNCE  = "bestguns_frag_bounce"
+local FRAG_SOUND_EXPLODE = "bestguns_frag_explode"
+local FRAG_SOUND_RING    = "bestguns_frag_ring"   -- ears ringing when caught close
+
+-- Each fragment is a bullet. Registered like any other round so the bullet
+-- entity picks up its smoke trail (on by default) and hit handling. It's never
+-- loaded into a gun - it's spawned directly at detonation - so its caliber is a
+-- dummy and it stays out of the creative inventory. Whizz-by and node-impact
+-- sounds are silenced: dozens landing at once would be a wall of noise.
+bestguns.register_bullet("bestguns:frag_fragment", {
+    description = "Grenade Fragment",
+    caliber = "frag",
+    speed = FRAG_FRAGMENT_SPEED,
+    size = 0.35,
+    texture = "blank.png",   -- overridden per-fragment at spawn
+    inventory_image = "bestguns_frag_frag_1.png",
+    damage = 30,
+    trail_spacing = 0.8,          -- a touch sparser than a bullet's default 0.5
+    whiz_sound = false,
+    hit_node_sound = false,
+    not_in_creative_inventory = true,
+})
+
+-- Uniformly random unit vector (proper spherical distribution - so fragments
+-- scatter evenly in all directions rather than clumping like bestguns.r would).
+local function frag_random_dir()
+    local z = math.random() * 2 - 1
+    local a = math.random() * 2 * math.pi
+    local r = math.sqrt(math.max(1 - z * z, 0))
+    return vector.new(r * math.cos(a), z, r * math.sin(a))
+end
+
+-- A full-screen white flash the player was staring into. A solid-white texture
+-- (textures/bestguns_frag_flash.png); opacity is animated down to zero each
+-- globalstep to fade the blindness out.
+local FRAG_FLASH_TEX = "bestguns_frag_flash.png"
+local frag_flashes = {}   -- pname -> {id = hud_id, remaining = , total = }
+
+-- Blind `player`: fade duration/starting opacity scale with `strength` in (0, 1].
+-- A fresh flash while one is still fading takes whichever leaves them blinded
+-- longer, so a double blast doesn't cut the effect short.
+local function frag_flash(player, strength)
+    local pname = player:get_player_name()
+    local total = FRAG_FLASH_TIME * strength
+    local existing = frag_flashes[pname]
+    if existing then
+        if total > existing.remaining then existing.remaining = total end
+        if total > existing.total then existing.total = total end
+        return
+    end
+    local id = player:hud_add({
+        hud_elem_type = "image",
+        position = {x = 0.5, y = 0.5},
+        alignment = {x = 0, y = 0},
+        scale = {x = -100, y = -100},   -- negative = percent of screen: fill it
+        text = FRAG_FLASH_TEX .. "^[opacity:255",
+        z_index = 1000,
+    })
+    if id then
+        frag_flashes[pname] = {id = id, remaining = total, total = total}
+    end
+end
+
+core.register_globalstep(function(dtime)
+    if not next(frag_flashes) then return end
+    for pname, f in pairs(frag_flashes) do
+        local player = core.get_player_by_name(pname)
+        if not player then
+            frag_flashes[pname] = nil
+        else
+            f.remaining = f.remaining - dtime
+            if f.remaining <= 0 then
+                player:hud_remove(f.id)
+                frag_flashes[pname] = nil
+            else
+                local alpha = math.floor(255 * (f.remaining / f.total))
+                player:hud_change(f.id, "text", FRAG_FLASH_TEX .. "^[opacity:" .. alpha)
+            end
+        end
+    end
+end)
+
+core.register_on_leaveplayer(function(player)
+    frag_flashes[player:get_player_name()] = nil   -- HUD dies with the player anyway
+end)
+
+-- Detonate at `pos`: spray the fragment bullets outward and throw up a flash +
+-- smoke burst. `thrower_name` attributes fragment kills to the thrower (and, as
+-- with every bullet, keeps them from being hit by their own fragments).
+local function frag_explode(pos, thrower_name)
+    local b_def = bestguns.registered_bullets["bestguns:frag_fragment"]
+    local center = vector.offset(pos, 0, 0.3, 0)   -- lift off the ground a touch
+
+    local count = math.random(FRAG_MIN_FRAGMENTS, FRAG_MAX_FRAGMENTS)
+    for _ = 1, count do
+        local data = {
+            velocity = vector.multiply(frag_random_dir(), FRAG_FRAGMENT_SPEED),
+            shooter_name = thrower_name or "",
+            _item = "bestguns:frag_fragment",
+            _drops = "",   -- fragments never drop as an item
+            damage = math.floor((b_def.damage or 1) * bestguns.damage_scale),
+            texture = "blank.png",
+            size = b_def.size or 1,
+            _trail_max = math.random(2, 9),   -- each shard's trail dies after 2-9 nodes
+            _self_hit = true,   -- your own frag can hit you: hug it and it hurts
+        }
+        core.add_entity(center, "bestguns:bullet", core.serialize(data))
+    end
+
+    -- Close-range shockwave: a burst of direct blast damage falling off linearly
+    -- from the centre to zero at FRAG_BLAST_RADIUS. Independent of the fragments
+    -- (which can miss), so anyone right on top of it is guaranteed to be hit. The
+    -- thrower is NOT spared - hug your own grenade and it kills you. Damage is
+    -- scaled by bestguns.damage_scale, same as every other damage source.
+    local thrower = thrower_name and core.get_player_by_name(thrower_name)
+    local puncher = (thrower and thrower:is_valid()) and thrower or nil
+    for _, obj in ipairs(core.get_objects_inside_radius(center, FRAG_BLAST_RADIUS)) do
+        if obj:is_valid() and (obj:is_player() or obj:get_luaentity()) then
+            local opos = obj:get_pos()
+            local dist = vector.distance(center, opos)
+            -- Walls stop the blast: no damage unless there's a clear line from the
+            -- centre to the target (aim at chest height so a low grenade still
+            -- reaches a standing player over a step).
+            local target = vector.offset(opos, 0, 1.0, 0)
+            local dmg = math.floor(FRAG_BLAST_DAMAGE * (1 - dist / FRAG_BLAST_RADIUS) * bestguns.damage_scale)
+            if dmg > 0 and core.line_of_sight(center, target) then
+                local dir = dist > 0.05 and vector.direction(center, obj:get_pos()) or vector.new(0, 1, 0)
+                obj:punch(puncher or obj, 1.0, {
+                    full_punch_interval = 1.0,
+                    damage_groups = {fleshy = dmg, ranged = 1, splash = 1},
+                }, dir)
+            end
+        end
+    end
+
+    -- Flash burst.
+    for _ = 1, math.random(10, 16) do
+        core.add_particle({
+            pos = center,
+            velocity = {x = bestguns.r(8), y = bestguns.r(8), z = bestguns.r(8)},
+            expirationtime = 0.15,
+            size = math.random(16, 26),
+            texture = "bestguns_muzzle_flash.png^[opacity:" .. math.random(50, 90),
+            glow = 14,
+        })
+    end
+    -- Lingering smoke cloud.
+    for _ = 1, math.random(18, 28) do
+        core.add_particle({
+            pos = vector.offset(center, bestguns.r(0.6), bestguns.r(0.4), bestguns.r(0.6)),
+            velocity = {x = bestguns.r(1.5), y = math.random(1, 3), z = bestguns.r(1.5)},
+            acceleration = {x = 0, y = 1, z = 0},
+            expirationtime = math.random(8, 16) / 10,
+            size = math.random(12, 24),
+            texture = "bestguns_smoke_" .. math.random(3) .. ".png^[opacity:" .. math.random(30, 70),
+            glow = math.random(3, 8),
+        })
+    end
+
+    core.sound_play(FRAG_SOUND_EXPLODE, {pos = center, gain = 1.2, max_hear_distance = 80}, true)
+
+    for _, player in ipairs(core.get_connected_players()) do
+        local ppos = player:get_pos()
+        local dist = vector.distance(ppos, center)
+
+        -- Ears ringing for anyone caught close, whether or not the blast hurt (or
+        -- killed) them. Played to_player (non-positional) so it keeps ringing at a
+        -- steady volume no matter where they move afterwards.
+        if dist <= FRAG_RING_HEAR then
+            core.sound_play(FRAG_SOUND_RING, {to_player = player:get_player_name(), gain = 1.0}, true)
+        end
+
+        -- Flash-blind anyone who was looking at the grenade with a clear line of
+        -- sight to it when it went off, within FRAG_BLIND_RADIUS nodes.
+        if dist <= FRAG_BLIND_RADIUS then
+            local eye = vector.offset(ppos, 0, player:get_properties().eye_height or 1.625, 0)
+            local dir = vector.direction(eye, center)
+            -- Facing the blast?
+            if vector.dot(player:get_look_dir(), dir) >= FRAG_BLIND_LOOK_DOT then
+                -- Unobstructed line of sight? (nodes only; the grenade sits in air)
+                local blocked = false
+                for hit in core.raycast(eye, center, false, false) do
+                    if hit.type == "node" then blocked = true break end
+                end
+                if not blocked then
+                    -- Closer = brighter/longer, clamped so even the edge gets a solid flash.
+                    local strength = math.max(1 - (dist / FRAG_BLIND_RADIUS) * 0.5, 0.4)
+                    frag_flash(player, strength)
+                end
+            end
+        end
+    end
+end
+
+-- Swap a grenade item's look between "safe" (pin in) and "cooking" (pin pulled).
+-- Clearing a meta field to "" reverts it to the base item definition's value.
+local function frag_set_armed_visuals(meta, armed)
+    if armed then
+        meta:set_string("inventory_image", "bestguns_frag_without_pin.png")
+        meta:set_string("wield_image", "bestguns_frag_without_pin.png")
+        meta:set_string("description", "Frag Grenade\nPin pulled - cooking!")
+    else
+        meta:set_string("inventory_image", "")
+        meta:set_string("wield_image", "")
+        meta:set_string("description", "")
+    end
+end
+
+-- Pin-pull tokens that have already been committed to a thrown/dropped grenade.
+-- The whole stack shares one token, so after one is thrown the leftover grenades
+-- in hand still bear it; this set lets the hand-detonate (and the next throw) know
+-- that pin-pull is spent, so it can't also blow up in your hand. Entries are
+-- cleaned up when the token's hand_detonate callback finally fires.
+local frag_spent_tokens = {}
+
+-- Every item name that behaves as a bestguns frag grenade. The canonical item is
+-- "bestguns:frag", but other mods can graft this behaviour onto their own item
+-- (e.g. bestguns_ctf overrides "ctf_grenades:frag" to replace CTF's builtin frag).
+-- The hand-detonate scan matches any of these names, so a cooking grenade held in
+-- hand blows up regardless of which registered frag item it is.
+local frag_item_names = {["bestguns:frag"] = true}
+
+-- Fuse expired while the grenade is still on the player (never thrown, or the
+-- thrown one already handled its own blast). Each pin-pull carries a unique
+-- token; we only detonate if a grenade still bearing THIS token is on the player
+-- - otherwise it was thrown/disarmed and this callback is stale. Cooking one off
+-- in your hand is lethal: a guaranteed self-hit finishes the careless holder.
+local function frag_hand_detonate(pname, token)
+    -- Already thrown/dropped under this pin-pull: the entity owns the blast.
+    if frag_spent_tokens[token] then
+        frag_spent_tokens[token] = nil
+        return
+    end
+
+    local player = core.get_player_by_name(pname)
+    if not player then return end
+
+    local matched = false
+    local wield = player:get_wielded_item()
+    if frag_item_names[wield:get_name()] and wield:get_meta():get_string("fuse_id") == token then
+        matched = true
+        player:set_wielded_item(ItemStack(""))
+    else
+        local inv = player:get_inventory()
+        for i = 1, inv:get_size("main") do
+            local st = inv:get_stack("main", i)
+            if frag_item_names[st:get_name()] and st:get_meta():get_string("fuse_id") == token then
+                matched = true
+                inv:set_stack("main", i, ItemStack(""))
+                break
+            end
+        end
+    end
+    if not matched then return end   -- thrown/disarmed: the entity owns the blast
+
+    local pos = vector.offset(player:get_pos(), 0, 1.0, 0)
+    frag_explode(pos, pname)   -- credit nearby frags to them; they're excluded from their own
+    player:punch(player, 1.0, {full_punch_interval = 1.0, damage_groups = {fleshy = 1000}})
+end
+
+-- RMB: pull the pin. The fuse starts NOW and runs no matter what happens next -
+-- thrown or held. A pin-pull sound plays and the grenade is marked "cooking".
+-- Pulling again does nothing (the pin's already out).
+local function frag_pull_pin(itemstack, user)
+    if not (user and user:is_player()) then return itemstack end
+    local meta = itemstack:get_meta()
+    if meta:get_int("armed") == 1 then return itemstack end
+
+    local now = core.get_us_time() / 1000000
+    local token = string.format("%d-%d", math.floor(now * 1000), math.random(1, 1000000000))
+    meta:set_int("armed", 1)
+    meta:set_float("fuse_start", now)
+    meta:set_string("fuse_id", token)
+    frag_set_armed_visuals(meta, true)
+
+    core.sound_play(FRAG_SOUND_PIN, {pos = user:get_pos(), gain = 0.9, max_hear_distance = 12}, true)
+
+    local pname = user:get_player_name()
+    core.after(FRAG_FUSE, function() frag_hand_detonate(pname, token) end)
+    return itemstack
+end
+
+-- The thrown grenade: a physical entity that arcs and rolls under gravity. If it
+-- was thrown with the pin pulled it carries the fuse time remaining and detonates
+-- when it runs out (see frag_explode). Thrown with the pin still in, it's a dud:
+-- it lands inert and drops back as a recoverable grenade item.
+core.register_entity(":bestguns:frag_grenade", {
+    initial_properties = {
+        physical = true,
+        collide_with_objects = false,
+        collisionbox = {-0.15, -0.15, -0.15, 0.15, 0.15, 0.15},
+        pointable = false,
+        visual = "sprite",
+        visual_size = {x = 0.45, y = 0.45},
+        textures = {"bestguns_frag_without_pin.png"},
+        static_save = false,
+    },
+
+    on_activate = function(self, staticdata)
+        self.object:set_armor_groups({immortal = 1})
+        local data = core.deserialize(staticdata) or {}
+        self.thrower_name = data.thrower_name
+        self.item_name = data.item_name or "bestguns:frag"   -- what a dud drops back as
+        self.timer = data.fuse   -- nil = dud (pin never pulled)
+        -- A dud still shows the pin.
+        if not self.timer then
+            self.object:set_properties({textures = {"bestguns_frag_with_pin.png"}})
+        end
+        self.object:set_acceleration({x = 0, y = -9.8, z = 0})
+    end,
+
+    on_step = function(self, dtime, moveresult)
+        -- Bounce off nodes: reflect the velocity along each axis it struck. The
+        -- colliding axes keep FRAG_BOUNCE of their speed (flipped, so it rebounds);
+        -- the tangential axes keep FRAG_FRICTION (scraping loss). This lets a
+        -- grenade ricochet off walls and roll to rest on the ground.
+        if moveresult and moveresult.collides and moveresult.collisions
+                and #moveresult.collisions > 0 then
+            local ov = moveresult.collisions[1].old_velocity
+            local nv = {x = ov.x * FRAG_FRICTION, y = ov.y * FRAG_FRICTION, z = ov.z * FRAG_FRICTION}
+            for _, c in ipairs(moveresult.collisions) do
+                if c.axis == "x" then nv.x = -ov.x * FRAG_BOUNCE
+                elseif c.axis == "y" then nv.y = -ov.y * FRAG_BOUNCE
+                elseif c.axis == "z" then nv.z = -ov.z * FRAG_BOUNCE end
+            end
+            self.object:set_velocity(nv)
+
+            -- Bounce/scrape sound the first tick it strikes something, re-armed
+            -- once it's airborne again, so a grenade resting on the ground stays
+            -- quiet. Skip the tiny settling taps once it's barely moving.
+            if not self._colliding then
+                self._colliding = true
+                if math.abs(ov.x) + math.abs(ov.y) + math.abs(ov.z) > 1.5 then
+                    core.sound_play(FRAG_SOUND_BOUNCE, {
+                        pos = self.object:get_pos(), gain = 0.6, max_hear_distance = 20,
+                    }, true)
+                end
+            end
+        else
+            self._colliding = false
+        end
+
+        if self.timer then
+            self.timer = self.timer - dtime
+            if self.timer <= 0 then
+                frag_explode(self.object:get_pos(), self.thrower_name)
+                self.object:remove()
+            end
+        else
+            -- Dud: sit inert a moment, then hand the grenade back as an item.
+            self._dud = (self._dud or 0) + dtime
+            if self._dud > 6 then
+                core.add_item(self.object:get_pos(), self.item_name)
+                self.object:remove()
+            end
+        end
+    end,
+})
+
+-- Launch a grenade from the player's hand as a live entity. `speed` is the lob
+-- speed along the look direction and `lift` the upward kick; a hard throw uses the
+-- full values, a drop uses near-zero so it just plops at your feet. `momentum`
+-- adds the thrower's own velocity (a running throw carries further) - off for a
+-- drop. Spends one grenade (minus creative) and disarms the rest of the stack.
+local function frag_throw(itemstack, user, speed, lift, momentum)
+    if not (user and user:is_player()) then return itemstack end
+    local meta = itemstack:get_meta()
+
+    -- If the pin's out (and this pin-pull hasn't already been spent on another
+    -- grenade from the same stack), hand the entity the fuse time still remaining
+    -- so it keeps counting down from where the hand-held fuse left off. Otherwise
+    -- it flies as a dud (fuse = nil). Marking the token spent stops the pending
+    -- hand-detonate from also blowing up the leftover grenades in your hand.
+    local fuse
+    local token = meta:get_string("fuse_id")
+    if meta:get_int("armed") == 1 and token ~= "" and not frag_spent_tokens[token] then
+        local now = core.get_us_time() / 1000000
+        fuse = math.max(FRAG_FUSE - (now - meta:get_float("fuse_start")), 0.05)
+        frag_spent_tokens[token] = true
+    end
+
+    local eye_height = user:get_properties().eye_height or 1.625
+    local dir = user:get_look_dir()
+    local origin = vector.offset(user:get_pos(), 0, eye_height - 0.2, 0)
+    local spawn = vector.add(origin, vector.multiply(dir, 0.5))
+
+    local vel = vector.add(vector.multiply(dir, speed), vector.new(0, lift, 0))
+    if momentum then vel = vector.add(vel, user:get_velocity() or vector.zero()) end
+
+    local obj = core.add_entity(spawn, "bestguns:frag_grenade", core.serialize({
+        thrower_name = user:get_player_name(),
+        item_name = itemstack:get_name(),
+        fuse = fuse,
+    }))
+    if obj then obj:set_velocity(vel) end
+
+    core.sound_play(FRAG_SOUND_THROW, {pos = origin, gain = 0.8, max_hear_distance = 16}, true)
+
+    if not core.is_creative_enabled(user:get_player_name()) then
+        itemstack:take_item(1)
+    end
+
+    -- The pin you pulled belonged to the grenade you just threw: any grenades left
+    -- in the stack are fresh and safe again (so the stale hand-detonate callback
+    -- finds no matching token and does nothing).
+    if itemstack:get_count() > 0 then
+        local m = itemstack:get_meta()
+        m:set_int("armed", 0)
+        m:set_string("fuse_id", "")
+        m:set_float("fuse_start", 0)
+        frag_set_armed_visuals(m, false)
+    end
+    return itemstack
+end
+
+-- The grenade item. RMB pulls the pin (arms the fuse); LMB throws; the drop key
+-- gently lobs it at your feet. You can throw at any time - before pulling the pin
+-- (an inert dud) or after (it'll cook off in flight). One grenade is spent per
+-- throw, minus creative mode. Leading ":" registers the "bestguns:"-namespaced
+-- item from this pack mod, like the bullets.
+core.register_craftitem(":bestguns:frag", {
+    description = "Frag Grenade",
+    inventory_image = "bestguns_frag_with_pin.png",
+    wield_image = "bestguns_frag_with_pin.png",
+    stack_max = 1,   -- grenades never stack: one armed pin-pull per item, no shared state
+
+    -- RMB (on a node or in the air): pull the pin.
+    on_place = function(itemstack, user, pointed_thing)
+        return frag_pull_pin(itemstack, user)
+    end,
+    on_secondary_use = function(itemstack, user, pointed_thing)
+        return frag_pull_pin(itemstack, user)
+    end,
+
+    -- LMB: a full throw, with a little lift and the thrower's momentum.
+    on_use = function(itemstack, user, pointed_thing)
+        return frag_throw(itemstack, user, FRAG_THROW_SPEED, 2, true)
+    end,
+
+    -- Drop key: counts as a throw too, but with almost no velocity - it just rolls
+    -- off your hand to your feet (a live grenade, cooking if the pin's out).
+    on_drop = function(itemstack, dropper, pos)
+        return frag_throw(itemstack, dropper, 0.5, 0.3, false)
+    end,
+})
+
+-- Public frag API, so another mod can graft the frag grenade's behaviour onto a
+-- different item (e.g. bestguns_ctf overrides "ctf_grenades:frag" so CTF hands out
+-- this grenade in place of its builtin one). `apply_to(name)` registers the item
+-- name so the hand-detonate scan recognises it and returns the standard callback
+-- set to splice into an override; the throw speeds are exposed for the on_use/drop.
+bestguns.frag = {
+    THROW_SPEED = FRAG_THROW_SPEED,
+
+    -- Register an item name as a frag grenade (so a cooking one in hand detonates).
+    register_item_name = function(name)
+        frag_item_names[name] = true
+    end,
+
+    -- The full set of item callbacks + visuals for a frag grenade. Feed straight
+    -- into core.register_craftitem or minetest.override_item on any item name;
+    -- also calls register_item_name so the item is recognised in-hand.
+    item_fields = function(name)
+        frag_item_names[name] = true
+        return {
+            description = "Frag Grenade",
+            inventory_image = "bestguns_frag_with_pin.png",
+            wield_image = "bestguns_frag_with_pin.png",
+            stack_max = 1,
+            on_place = function(itemstack, user, pointed_thing) return frag_pull_pin(itemstack, user) end,
+            on_secondary_use = function(itemstack, user, pointed_thing) return frag_pull_pin(itemstack, user) end,
+            on_use = function(itemstack, user, pointed_thing)
+                return frag_throw(itemstack, user, FRAG_THROW_SPEED, 2, true)
+            end,
+            on_drop = function(itemstack, dropper, pos)
+                return frag_throw(itemstack, dropper, 0.5, 0.3, false)
+            end,
+        }
+    end,
+}
+
+
 -- CTF integration (loot, class loadouts, combat) lives in the separate
 -- bestguns_ctf mod (mods/ctf/ctf_combat/bestguns_ctf).
