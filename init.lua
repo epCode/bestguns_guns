@@ -1037,7 +1037,7 @@ local FRAG_MIN_FRAGMENTS   = 5
 local FRAG_MAX_FRAGMENTS   = 30
 local FRAG_FRAGMENT_SPEED  = 150   -- speed of each fragment (acts as a bullet)
 local FRAG_BLAST_RADIUS    = 9.2   -- close-range shockwave reach (nodes)
-local FRAG_BLAST_DAMAGE    = 200    -- shockwave HP at the centre, before damage_scale
+local FRAG_BLAST_DAMAGE    = 400    -- shockwave HP at the centre, before damage_scale
 local FRAG_RING_HEAR       = 8    -- max hear distance of the ears-ringing sound
 local FRAG_BLIND_RADIUS    = 8     -- flash-blinds players within this many nodes
 local FRAG_BLIND_LOOK_DOT  = 0.4   -- must be facing the blast within this cone (dot)
@@ -1064,6 +1064,7 @@ bestguns.register_bullet("bestguns:frag_fragment", {
     inventory_image = "bestguns_frag_frag_1.png",
     damage = 30,
     trail_spacing = 0.8,          -- a touch sparser than a bullet's default 0.5
+    bounces = 2,                  -- shards ricochet off walls twice before spending out
     whiz_sound = false,
     hit_node_sound = false,
     not_in_creative_inventory = true,
@@ -1083,6 +1084,11 @@ end
 -- globalstep to fade the blindness out.
 local FRAG_FLASH_TEX = "bestguns_frag_flash.png"
 local frag_flashes = {}   -- pname -> {id = hud_id, remaining = , total = }
+
+-- Active ears-ringing sounds, pname -> sound handle. Kept so the ring can be
+-- stopped on death (dying with your ears ringing forever is no fun) and so a
+-- fresh blast replaces the old ring rather than stacking a second one on top.
+local frag_rings = {}
 
 -- Blind `player`: fade duration/starting opacity scale with `strength` in (0, 1].
 -- A fresh flash while one is still fading takes whichever leaves them blinded
@@ -1128,8 +1134,22 @@ core.register_globalstep(function(dtime)
     end
 end)
 
+-- Silence a player's ringing ears (on death or disconnect).
+local function frag_stop_ring(pname)
+    if frag_rings[pname] then
+        core.sound_stop(frag_rings[pname])
+        frag_rings[pname] = nil
+    end
+end
+
+core.register_on_dieplayer(function(player)
+    frag_stop_ring(player:get_player_name())
+end)
+
 core.register_on_leaveplayer(function(player)
-    frag_flashes[player:get_player_name()] = nil   -- HUD dies with the player anyway
+    local pname = player:get_player_name()
+    frag_flashes[pname] = nil   -- HUD dies with the player anyway
+    frag_stop_ring(pname)
 end)
 
 -- Detonate at `pos`: spray the fragment bullets outward and throw up a flash +
@@ -1213,9 +1233,12 @@ local function frag_explode(pos, thrower_name)
 
         -- Ears ringing for anyone caught close, whether or not the blast hurt (or
         -- killed) them. Played to_player (non-positional) so it keeps ringing at a
-        -- steady volume no matter where they move afterwards.
+        -- steady volume no matter where they move afterwards. Tracked per player so
+        -- it's cut off on death; a second blast replaces the first ring.
         if dist <= FRAG_RING_HEAR then
-            core.sound_play(FRAG_SOUND_RING, {to_player = player:get_player_name(), gain = 1.0}, true)
+            local pname = player:get_player_name()
+            if frag_rings[pname] then core.sound_stop(frag_rings[pname]) end
+            frag_rings[pname] = core.sound_play(FRAG_SOUND_RING, {to_player = pname, gain = 1.0}, true)
         end
 
         -- Flash-blind anyone who was looking at the grenade with a clear line of
